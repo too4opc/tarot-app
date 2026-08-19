@@ -26,12 +26,14 @@ const TAROT_NAMES = [
 ];
 const DECK_INFO = TAROT_NAMES.map((n, i) => `${i}:${n}`).join(", ");
 
+// เลี่ยงโครงสร้างซ้อน array-of-objects (เช่น "keys":[{...},{...}]) เพราะโมเดลบางตัวที่ openrouter/auto
+// สุ่มไปเจอ มักพิมพ์ผิดคอมม่า/วงเล็บตรงจุดนี้ ทำให้ JSON parse ไม่ผ่าน -> ใช้ field แบนแทนทั้งหมด
 const READING_SHAPE_DOC = `{
   "hook": "ประโยคเปิดที่สะท้อนอารมณ์/พลังงานหลักทันที",
-  "keys": [
-    {"title":"หัวข้อประเด็นที่ 1 (สั้น กระชับ)","description":"อธิบายประเด็นนี้ 1-2 ประโยค"},
-    {"title":"หัวข้อประเด็นที่ 2 (สั้น กระชับ)","description":"อธิบายประเด็นนี้ 1-2 ประโยค"}
-  ],
+  "key1_title": "หัวข้อประเด็นที่ 1 (สั้น กระชับ)",
+  "key1_desc": "อธิบายประเด็นที่ 1 ใน 1-2 ประโยค",
+  "key2_title": "หัวข้อประเด็นที่ 2 (สั้น กระชับ)",
+  "key2_desc": "อธิบายประเด็นที่ 2 ใน 1-2 ประโยค",
   "do": "สิ่งที่ควรทำ 1 อย่าง เป็นรูปธรรม นำไปใช้ได้จริงทันที",
   "dont": "สิ่งที่ควรหลีกเลี่ยง 1 อย่าง เป็นรูปธรรม",
   "conclusion": "ประโยคสรุปทรงพลัง ให้กำลังใจ ปิดท้ายอย่างอบอุ่น"
@@ -39,7 +41,7 @@ const READING_SHAPE_DOC = `{
 
 const FRAMEWORK_RULES = `โครงสร้างการเขียนคำทำนาย (สำคัญมาก! ต้องมีครบ 4 ส่วนตามลำดับนี้เท่านั้น ห้ามขาด ห้ามสลับ):
 1. Hook: ประโยคแรกดึงความสนใจ สะท้อนความรู้สึกหรือพลังงานหลักทันที (เช่น "ดูเหมือนว่า...", "ลึกๆ แล้วคุณอาจกำลัง...")
-2. Keys: ประเด็นสำคัญ 2 ประเด็นที่ไพ่กำลังสื่อ แต่ละประเด็นมี title สั้นๆ และ description อธิบาย 1-2 ประโยค
+2. Keys: ประเด็นสำคัญ 2 ประเด็นที่ไพ่กำลังสื่อ (key1_title/key1_desc และ key2_title/key2_desc) แต่ละประเด็นมีหัวข้อสั้นๆ และคำอธิบาย 1-2 ประโยค
 3. Do & Don't: สิ่งที่ควรทำ 1 อย่าง (do) และสิ่งที่ควรหลีกเลี่ยง 1 อย่าง (dont) ที่เป็นรูปธรรม นำไปปรับใช้ได้จริงทันที
 4. Conclusion: ประโยคสรุปทรงพลัง ให้กำลังใจ ปิดท้ายอย่างอบอุ่น
 กฎสำคัญ: แม้ไพ่จะเลวร้ายแค่ไหน ห้ามขู่ให้กลัว ให้ตีความเป็น "บทเรียนเพื่อเติบโต" มอบพลังบวกเสมอ
@@ -102,17 +104,25 @@ function extractJSON(text = "") {
   const trimmed = text.trim();
   try {
     return JSON.parse(trimmed);
-  } catch {
+  } catch (firstErr) {
     const m = trimmed.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error("No JSON in model response");
-    return JSON.parse(m[0]);
+    if (!m) throw new Error(`No JSON in model response. Raw (first 300 chars): ${trimmed.slice(0, 300)}`);
+    try {
+      return JSON.parse(m[0]);
+    } catch (secondErr) {
+      // แนบ context รอบตำแหน่งที่ parse พังไว้ในข้อความ error เพื่อช่วยดีบักว่าโมเดลพิมพ์อะไรผิด
+      const posMatch = secondErr.message.match(/position (\d+)/);
+      const pos = posMatch ? parseInt(posMatch[1], 10) : null;
+      const context = pos != null ? m[0].slice(Math.max(0, pos - 80), pos + 80) : m[0].slice(0, 200);
+      throw new Error(`${secondErr.message} | context: ...${context}...`);
+    }
   }
 }
 
 function isValidReadingItem(r) {
   return r && typeof r.hook === "string" &&
-    Array.isArray(r.keys) && r.keys.length > 0 &&
-    r.keys.every(k => typeof k.title === "string" && typeof k.description === "string") &&
+    typeof r.key1_title === "string" && typeof r.key1_desc === "string" &&
+    typeof r.key2_title === "string" && typeof r.key2_desc === "string" &&
     typeof r.do === "string" && typeof r.dont === "string" && typeof r.conclusion === "string";
 }
 
@@ -154,7 +164,7 @@ async function callOpenRouter(systemPrompt, userPrompt, maxTokens) {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.85,
+      temperature: 0.7,
       max_tokens: maxTokens,
       response_format: { type: "json_object" },
     }),

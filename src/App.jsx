@@ -236,10 +236,13 @@ const ReadingBlock = ({ reading }) => {
       </p>
 
       <div className="space-y-2">
-        {reading.keys?.map((k, i) => (
+        {[
+          { title: reading.key1_title, desc: reading.key1_desc },
+          { title: reading.key2_title, desc: reading.key2_desc },
+        ].filter(k => k.title).map((k, i) => (
           <div key={i} className="bg-indigo-950/40 border border-indigo-500/20 rounded-lg p-3">
             <p className="text-yellow-300 font-semibold text-sm mb-1">{k.title}</p>
-            <p className="text-indigo-100 text-sm leading-relaxed">{k.description}</p>
+            <p className="text-indigo-100 text-sm leading-relaxed">{k.desc}</p>
           </div>
         ))}
       </div>
@@ -378,10 +381,10 @@ export default function App() {
         ...prev,
         aiReadings: cards.map(c => ({
           hook: `ลึกๆ แล้วจิตใจของคุณในตอนนี้กำลังสะท้อนถึงเรื่องราวของ ${c.meaning.split(',')[0]}`,
-          keys: [
-            { title: 'สิ่งที่กำลังเกิดขึ้น', description: 'ไม่เป็นไรเลยที่จะรู้สึกแบบนี้ในตอนนี้' },
-            { title: 'สิ่งที่ควรรู้', description: 'ทุกความรู้สึกล้วนมีเหตุผลของมันเสมอ' }
-          ],
+          key1_title: 'สิ่งที่กำลังเกิดขึ้น',
+          key1_desc: 'ไม่เป็นไรเลยที่จะรู้สึกแบบนี้ในตอนนี้',
+          key2_title: 'สิ่งที่ควรรู้',
+          key2_desc: 'ทุกความรู้สึกล้วนมีเหตุผลของมันเสมอ',
           do: 'อนุญาตให้ตัวเองได้รู้สึกและพักผ่อนใจ',
           dont: 'อย่าเร่งรัดตัวเองให้หาคำตอบทันที',
           conclusion: 'ค่อยๆ โอบกอดมันเพื่อก้าวต่อไปนะครับ'
@@ -425,10 +428,10 @@ export default function App() {
         ...prev,
         questionAnswer: {
           hook: 'สำหรับเรื่องที่คุณกังวลอยู่ ไม่เป็นไรเลยที่จะรู้สึกสับสนในตอนนี้',
-          keys: [
-            { title: 'สถานการณ์ตอนนี้', description: 'บางเรื่องต้องใช้เวลาตกตะกอนก่อนจะเห็นทางออกชัดเจน' },
-            { title: 'สิ่งที่ซ่อนอยู่ในใจ', description: 'คำตอบที่แท้จริงมักอยู่ใกล้กว่าที่คิดเสมอ' }
-          ],
+          key1_title: 'สถานการณ์ตอนนี้',
+          key1_desc: 'บางเรื่องต้องใช้เวลาตกตะกอนก่อนจะเห็นทางออกชัดเจน',
+          key2_title: 'สิ่งที่ซ่อนอยู่ในใจ',
+          key2_desc: 'คำตอบที่แท้จริงมักอยู่ใกล้กว่าที่คิดเสมอ',
           do: 'ให้เวลาตัวเองได้ทบทวนอย่างใจเย็น',
           dont: 'อย่าตัดสินใจเรื่องสำคัญตอนใจยังไม่นิ่ง',
           conclusion: 'แล้วคุณจะพบคำตอบที่ถูกต้องจากเสียงข้างในหัวใจคุณเองครับ'
@@ -483,10 +486,10 @@ export default function App() {
         customQuestion: `"${dream.slice(0, 30)}..."`,
         questionAnswer: {
           hook: 'จิตใต้สำนึกของคุณกำลังพยายามสื่อสารบางอย่างผ่านความฝันนี้',
-          keys: [
-            { title: 'ความหมายที่เป็นไปได้', description: 'อาจเป็นความกังวลลึกๆ หรือลางสังหรณ์บางอย่าง' },
-            { title: 'สิ่งที่ควรฟัง', description: 'สัญชาตญาณของคุณมักรู้ก่อนความคิดเสมอ' }
-          ],
+          key1_title: 'ความหมายที่เป็นไปได้',
+          key1_desc: 'อาจเป็นความกังวลลึกๆ หรือลางสังหรณ์บางอย่าง',
+          key2_title: 'สิ่งที่ควรฟัง',
+          key2_desc: 'สัญชาตญาณของคุณมักรู้ก่อนความคิดเสมอ',
           do: 'เชื่อมั่นในสัญชาตญาณของตัวเอง',
           dont: 'อย่าเพิกเฉยต่อความรู้สึกที่ฝันทิ้งไว้',
           conclusion: 'ขอให้คุณโอบกอดความรู้สึกเหล่านี้นะครับ'
