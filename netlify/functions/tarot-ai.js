@@ -116,9 +116,10 @@ function extractJSON(text = "") {
       try {
         return JSON.parse(repaired);
       } catch (finalErr) {
+        // DEBUG: ดัมพ์ context กว้างขึ้นมากเพื่อดูโครงสร้างจริงที่โมเดลตอบมา (ชั่วคราว ไว้วินิจฉัยจุดพัง)
         const posMatch = finalErr.message.match(/position (\d+)/);
         const pos = posMatch ? parseInt(posMatch[1], 10) : null;
-        const context = pos != null ? repaired.slice(Math.max(0, pos - 80), pos + 80) : repaired.slice(0, 200);
+        const context = pos != null ? repaired.slice(Math.max(0, pos - 400), pos + 400) : repaired.slice(0, 800);
         throw new Error(`${finalErr.message} | context: ...${context}...`);
       }
     }
