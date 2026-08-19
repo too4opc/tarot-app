@@ -1,0 +1,6 @@
+.env
+node_modules/
+dist/
+.netlify/
+_original_backup/
+tarot.html
