@@ -167,7 +167,9 @@ const fetchWithRetry = async (url, options, { retries = 3, timeoutMs = 20000, si
       clearTimeout(timer);
       signal?.removeEventListener('abort', fwd);
       lastErr = err;
-      if (err.name === 'AbortError' || err.name === 'AuthError') throw err;
+      // signal?.aborted จริง = ผู้เรียกยกเลิกเอง (เช่น เริ่มรอบทำนายใหม่ทับ) -> เลิกทันที ไม่ retry
+      // ส่วน AbortError ที่เกิดจาก timer ของเราเอง (timeoutMs หมด) ให้ถือเป็นความล้มเหลวชั่วคราว retry ได้ตามปกติ
+      if (signal?.aborted || err.name === 'AuthError') throw err;
       if (attempt < retries - 1) {
         await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
       }
@@ -178,12 +180,13 @@ const fetchWithRetry = async (url, options, { retries = 3, timeoutMs = 20000, si
 
 // เรียก Netlify Function (netlify/functions/tarot-ai.js) — server เก็บ system prompt + API key ไว้ทั้งหมด
 // client ส่งแค่ type + ข้อมูลดิบที่จำเป็น แล้วได้ JSON กลับมาตรงๆ ไม่ต้องแกะ response format ของโมเดลเอง
-const callTarotAPI = async (type, payload, signal) => {
+// timeoutMs ปรับได้ต่อ endpoint: การทำนาย 10 ใบตอบข้อมูลเยอะกว่า (framework Hook->Keys->Do/Don't->Conclusion x10) เลยให้เวลามากกว่า
+const callTarotAPI = async (type, payload, signal, timeoutMs = 20000) => {
   return fetchWithRetry(PROXY_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, ...payload })
-  }, { signal });
+  }, { signal, timeoutMs });
 };
 
 // ---------------------------------------------------------------------------
@@ -353,7 +356,7 @@ export default function App() {
       const POSITION_NAMES = ['ปัจจุบัน','อุปสรรค','รากฐาน','อดีต','เป้าหมาย','อนาคต','ตัวตน','แวดล้อม','หวัง/กลัว','สรุป'];
       const cardsPayload = cards.map((c, i) => ({ position: POSITION_NAMES[i], meaning: c.meaning }));
 
-      const data = await callTarotAPI('reading10', { cards: cardsPayload }, ac.signal);
+      const data = await callTarotAPI('reading10', { cards: cardsPayload }, ac.signal, 35000);
 
       if (!Array.isArray(data?.readings) || data.readings.length !== 10 || typeof data.summary !== 'string' || !data.mutelu) {
         throw new Error('Bad structure');
@@ -368,7 +371,8 @@ export default function App() {
         gameState: 'reading'
       }));
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      // ยกเลิกจริง (เช่น มีการเริ่มทำนายรอบใหม่ทับ) -> ไม่ต้องทำอะไรต่อ ปล่อยให้รอบใหม่จัดการ state เอง
+      if (ac.signal.aborted) return;
       console.warn('[TarotApp] AI Generation Error:', err.message);
       safeSetState(genId, prev => ({
         ...prev,
@@ -402,7 +406,7 @@ export default function App() {
         question,
         cardMeanings: cards.map(c => c.meaning),
         baseSummary: baseSummaryText
-      }, ac.signal);
+      }, ac.signal, 25000);
 
       if (!data?.answer || typeof data.answer !== 'object' || !data.mutelu) throw new Error('Bad structure');
 
@@ -415,7 +419,7 @@ export default function App() {
         revealed: new Array(3).fill(true)
       }));
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (ac.signal.aborted) return;
       console.warn('[TarotApp] 3-Card AI Error:', err.message);
       safeSetState(genId, prev => ({
         ...prev,
@@ -446,7 +450,7 @@ export default function App() {
     setState(prev => ({ ...prev, gameState: 'generating_dream' }));
 
     try {
-      const data = await callTarotAPI('dream', { dream }, ac.signal);
+      const data = await callTarotAPI('dream', { dream }, ac.signal, 25000);
 
       if (!Array.isArray(data?.cardIds) || data.cardIds.length !== 3 || !data?.answer || typeof data.answer !== 'object' || !data.mutelu) {
         throw new Error('Bad structure');
@@ -469,7 +473,7 @@ export default function App() {
         revealed: new Array(3).fill(true)
       }));
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (ac.signal.aborted) return;
       console.warn('[TarotApp] Dream AI Error:', err.message);
       const fallbackCards = [TAROT_DECK[18], TAROT_DECK[2], TAROT_DECK[17]].map((c,i)=>({...c, deckIndex: i}));
       safeSetState(genId, prev => ({
