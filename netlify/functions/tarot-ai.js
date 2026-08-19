@@ -109,12 +109,18 @@ function extractJSON(text = "") {
     if (!m) throw new Error(`No JSON in model response. Raw (first 300 chars): ${trimmed.slice(0, 300)}`);
     try {
       return JSON.parse(m[0]);
-    } catch (secondErr) {
-      // แนบ context รอบตำแหน่งที่ parse พังไว้ในข้อความ error เพื่อช่วยดีบักว่าโมเดลพิมพ์อะไรผิด
-      const posMatch = secondErr.message.match(/position (\d+)/);
-      const pos = posMatch ? parseInt(posMatch[1], 10) : null;
-      const context = pos != null ? m[0].slice(Math.max(0, pos - 80), pos + 80) : m[0].slice(0, 200);
-      throw new Error(`${secondErr.message} | context: ...${context}...`);
+    } catch {
+      // ความผิดพลาดที่พบบ่อยที่สุดจากโมเดล: ปิด } ของ object หนึ่งใน array แล้วเปิด { ของตัวถัดไปทันที
+      // โดยลืมใส่คอมม่าคั่น -> ซ่อมด้วยการแทรกคอมม่าเข้าไปแล้วลอง parse ใหม่อีกครั้งก่อนจะยอมแพ้
+      const repaired = m[0].replace(/\}(\s*)\{/g, '},$1{');
+      try {
+        return JSON.parse(repaired);
+      } catch (finalErr) {
+        const posMatch = finalErr.message.match(/position (\d+)/);
+        const pos = posMatch ? parseInt(posMatch[1], 10) : null;
+        const context = pos != null ? repaired.slice(Math.max(0, pos - 80), pos + 80) : repaired.slice(0, 200);
+        throw new Error(`${finalErr.message} | context: ...${context}...`);
+      }
     }
   }
 }
