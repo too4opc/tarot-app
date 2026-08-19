@@ -206,9 +206,11 @@ exports.handler = async (event) => {
       const userPromptA = `ไพ่ทั้ง 10 ใบ (เรียงตามลำดับ):\n${fullContext}`;
       const userPromptB = userPromptA;
 
+      // openrouter/auto บางครั้งสุ่มไปเจอโมเดลที่ใช้ token ส่วนหนึ่งไปกับ "reasoning" ภายในก่อนเขียนคำตอบจริง
+      // -> ให้ max_tokens มีระยะกันชนมากพอ ไม่งั้น JSON จะถูกตัดครึ่งกลางคันหรือได้ content ว่างเปล่า
       const [resultA, resultB] = await Promise.all([
-        callOpenRouter(SYSTEM_10_A, userPromptA, 1800),
-        callOpenRouter(SYSTEM_10_B, userPromptB, 1400),
+        callOpenRouter(SYSTEM_10_A, userPromptA, 3000),
+        callOpenRouter(SYSTEM_10_B, userPromptB, 2200),
       ]);
 
       if (!Array.isArray(resultA?.readings) || resultA.readings.length !== 5 ||
@@ -234,7 +236,7 @@ exports.handler = async (event) => {
         baseSummary ? `[ปูมหลังสภาพจิตใจผู้ถาม: ${String(baseSummary).slice(0, 150)}...]` : ""
       );
       const userPrompt = `หมวด:${topic}|คำถาม:${question || "ภาพรวม"}|ไพ่:${cardMeanings.join("/")}`;
-      result = await callOpenRouter(sys, userPrompt, 1200);
+      result = await callOpenRouter(sys, userPrompt, 1800);
       if (!isValidReadingItem(result?.answer) || !result.mutelu) {
         throw new Error("Bad structure from model (reading3)");
       }
@@ -243,7 +245,7 @@ exports.handler = async (event) => {
       if (!dream || typeof dream !== "string") throw new Error("Invalid dream payload");
       const sys = SYSTEM_DREAM_TEMPLATE.replace("{{DECK_INFO}}", DECK_INFO);
       const userPrompt = `ความฝันของฉันคือ: "${dream}"`;
-      result = await callOpenRouter(sys, userPrompt, 1200);
+      result = await callOpenRouter(sys, userPrompt, 1800);
       if (!Array.isArray(result?.cardIds) || result.cardIds.length !== 3 ||
           !isValidReadingItem(result?.answer) || !result.mutelu) {
         throw new Error("Bad structure from model (dream)");
