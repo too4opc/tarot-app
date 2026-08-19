@@ -227,6 +227,25 @@ const fallbackMutelu = {
   lucky_number: "9, 4 (ตัวเลขแห่งความสงบและการฟื้นฟูจิตใจ)"
 };
 
+// ใช้ตอน AI เรียกไม่สำเร็จ (โหมด fallback) — ดึงคำจากความหมายไพ่จริง (meaning) มาประกอบ
+// เพื่อไม่ให้ทุกใบ/ทุกครั้งได้ข้อความชุดเดียวกันเป๊ะๆ เหมือนก่อนหน้านี้
+const buildFallbackReading = (meaning) => {
+  const parts = meaning.split(',').map(s => s.trim()).filter(Boolean);
+  const k1 = parts[0] || meaning;
+  const k2 = parts[1] || k1;
+  const k3 = parts[2] || k2;
+  return {
+    hook: `ไพ่ใบนี้กำลังพูดถึงเรื่อง "${k1}" ที่กำลังเคลื่อนไหวอยู่ในชีวิตคุณตอนนี้`,
+    key1_title: k1,
+    key1_desc: `${k1} คือแก่นของไพ่ใบนี้ เป็นแรงที่กำลังทำงานอยู่เบื้องหลังสถานการณ์ของคุณตอนนี้`,
+    key2_title: k2,
+    key2_desc: `ในเวลาเดียวกัน ${k2} ก็เป็นอีกแรงหนึ่งที่ประกอบกันอยู่ ทำให้เรื่องราวของคุณมีหลายมิติ`,
+    do: `ลองสังเกตดูว่าเรื่อง${k1}กำลังแสดงตัวออกมาในชีวิตคุณตรงไหนบ้าง`,
+    dont: `อย่ามองข้ามสัญญาณเรื่อง${k2}ที่กำลังส่งมาถึงคุณตอนนี้`,
+    conclusion: `เมื่อคุณเข้าใจพลังของ${k3} เส้นทางข้างหน้าจะค่อยๆ ชัดเจนขึ้นเองครับ`
+  };
+};
+
 // ---------------------------------------------------------------------------
 // Component: ReadingBlock — เรนเดอร์คำทำนายตาม framework Hook -> Keys -> Do/Don't -> Conclusion
 // ---------------------------------------------------------------------------
@@ -359,16 +378,7 @@ export default function App() {
       console.warn('[TarotApp] AI Generation Error:', err.message);
       safeSetState(genId, prev => ({
         ...prev,
-        aiReadings: cards.map(c => ({
-          hook: `ลึกๆ แล้วจิตใจของคุณในตอนนี้กำลังสะท้อนถึงเรื่องราวของ ${c.meaning.split(',')[0]}`,
-          key1_title: 'สิ่งที่กำลังเกิดขึ้น',
-          key1_desc: 'ไม่เป็นไรเลยที่จะรู้สึกแบบนี้ในตอนนี้',
-          key2_title: 'สิ่งที่ควรรู้',
-          key2_desc: 'ทุกความรู้สึกล้วนมีเหตุผลของมันเสมอ',
-          do: 'อนุญาตให้ตัวเองได้รู้สึกและพักผ่อนใจ',
-          dont: 'อย่าเร่งรัดตัวเองให้หาคำตอบทันที',
-          conclusion: 'ค่อยๆ โอบกอดมันเพื่อก้าวต่อไปนะครับ'
-        })),
+        aiReadings: cards.map(c => buildFallbackReading(c.meaning)),
         aiSummary: "ช่วงเวลานี้อาจมีเรื่องให้ทบทวนและจัดการมากมาย แต่เชื่อเถอะครับว่าคุณมีพลังความเข้มแข็งซ่อนอยู่ภายในเสมอ ค่อยๆ ก้าวไปทีละก้าว ไม่ต้องรีบร้อนนะครับ",
         muteluTips: fallbackMutelu,
         isFallbackMode: true,
@@ -406,16 +416,7 @@ export default function App() {
       console.warn('[TarotApp] 3-Card AI Error:', err.message);
       safeSetState(genId, prev => ({
         ...prev,
-        questionAnswer: {
-          hook: 'สำหรับเรื่องที่คุณกังวลอยู่ ไม่เป็นไรเลยที่จะรู้สึกสับสนในตอนนี้',
-          key1_title: 'สถานการณ์ตอนนี้',
-          key1_desc: 'บางเรื่องต้องใช้เวลาตกตะกอนก่อนจะเห็นทางออกชัดเจน',
-          key2_title: 'สิ่งที่ซ่อนอยู่ในใจ',
-          key2_desc: 'คำตอบที่แท้จริงมักอยู่ใกล้กว่าที่คิดเสมอ',
-          do: 'ให้เวลาตัวเองได้ทบทวนอย่างใจเย็น',
-          dont: 'อย่าตัดสินใจเรื่องสำคัญตอนใจยังไม่นิ่ง',
-          conclusion: 'แล้วคุณจะพบคำตอบที่ถูกต้องจากเสียงข้างในหัวใจคุณเองครับ'
-        },
+        questionAnswer: buildFallbackReading(cards.map(c => c.meaning).join(', ')),
         muteluTips: fallbackMutelu,
         isFallbackMode: true,
         gameState: 'reading_3',
@@ -464,16 +465,7 @@ export default function App() {
         selectedCards: fallbackCards,
         selectedTopic: "ถอดรหัสความฝัน",
         customQuestion: `"${dream.slice(0, 30)}..."`,
-        questionAnswer: {
-          hook: 'จิตใต้สำนึกของคุณกำลังพยายามสื่อสารบางอย่างผ่านความฝันนี้',
-          key1_title: 'ความหมายที่เป็นไปได้',
-          key1_desc: 'อาจเป็นความกังวลลึกๆ หรือลางสังหรณ์บางอย่าง',
-          key2_title: 'สิ่งที่ควรฟัง',
-          key2_desc: 'สัญชาตญาณของคุณมักรู้ก่อนความคิดเสมอ',
-          do: 'เชื่อมั่นในสัญชาตญาณของตัวเอง',
-          dont: 'อย่าเพิกเฉยต่อความรู้สึกที่ฝันทิ้งไว้',
-          conclusion: 'ขอให้คุณโอบกอดความรู้สึกเหล่านี้นะครับ'
-        },
+        questionAnswer: buildFallbackReading(fallbackCards.map(c => c.meaning).join(', ')),
         muteluTips: fallbackMutelu,
         isFallbackMode: true,
         gameState: 'reading_dream',
