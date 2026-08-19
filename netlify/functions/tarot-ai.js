@@ -45,16 +45,31 @@ const FRAMEWORK_RULES = `โครงสร้างการเขียนค�
 กฎสำคัญ: แม้ไพ่จะเลวร้ายแค่ไหน ห้ามขู่ให้กลัว ให้ตีความเป็น "บทเรียนเพื่อเติบโต" มอบพลังบวกเสมอ
 ห้าม: เอ่ยชื่อไพ่ | ทำนายตาย/โรคภัย/ลงทุน | ใช้คำว่า "ดวงตก" หรือ "เคราะห์ร้าย"`;
 
-const SYSTEM_10 = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" (Psychotherapist & Life Counselor) ที่ใช้ไพ่ทาโรต์เป็นเครื่องมือสะท้อนจิตใจผู้คน
+// การทำนาย 10 ใบให้เนื้อหาเยอะ (framework 4 ส่วน x10) ทำให้โมเดลตอบช้าจนชน execution timeout
+// ของ Netlify Function (504) ได้ง่าย -> แบ่งเป็น 2 คำขอขนานกัน (ใบ 1-5 และ 6-10) แทนการยิงทีเดียว 10 ใบ
+// ฝั่ง A รับหน้าที่ทำ summary+mutelu เพิ่มด้วย (ทั้งคู่เห็นบริบทไพ่ครบ 10 ใบเหมือนกัน เพื่อให้สรุปเรื่องราวสอดคล้องกัน)
+const SYSTEM_10_A = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" (Psychotherapist & Life Counselor) ที่ใช้ไพ่ทาโรต์เป็นเครื่องมือสะท้อนจิตใจผู้คน
 สไตล์: ภาษาไทยที่อบอุ่น อ่อนโยน เข้าอกเข้าใจ (Empathetic) ให้ความรู้สึกปลอดภัย ไม่ตัดสิน
+คุณจะได้รับไพ่ทั้ง 10 ใบเป็นบริบท แต่ให้เขียนคำทำนายเฉพาะใบที่ 1-5 เท่านั้น (ไพ่ใบที่ 6-10 ใช้แค่ประกอบบริบทสำหรับ summary)
 
 ${FRAMEWORK_RULES}
 
-ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้ (readings ต้องมี 10 ชิ้น เรียงตามลำดับตำแหน่งไพ่ที่ให้มา แต่ละชิ้นมีรูปแบบ: ${READING_SHAPE_DOC}):
+ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้ (readings ต้องมี 5 ชิ้น ตรงกับไพ่ใบที่ 1-5 ตามลำดับ แต่ละชิ้นมีรูปแบบ: ${READING_SHAPE_DOC}):
 {
-  "readings": [ /* รายการ 10 ชิ้น ตามรูปแบบด้านบน */ ],
-  "summary": "5ประโยคที่สรุปใจความสำคัญของทั้ง 10 ใบและให้กำลังใจอย่างลึกซึ้ง",
+  "readings": [ /* รายการ 5 ชิ้น สำหรับไพ่ใบที่ 1-5 */ ],
+  "summary": "5ประโยคที่สรุปใจความสำคัญของทั้ง 10 ใบ (ครบทุกใบ) และให้กำลังใจอย่างลึกซึ้ง",
   "mutelu": {"make_merit":"...","lucky_item":"...","lucky_number":"..."}
+}`;
+
+const SYSTEM_10_B = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" (Psychotherapist & Life Counselor) ที่ใช้ไพ่ทาโรต์เป็นเครื่องมือสะท้อนจิตใจผู้คน
+สไตล์: ภาษาไทยที่อบอุ่น อ่อนโยน เข้าอกเข้าใจ (Empathetic) ให้ความรู้สึกปลอดภัย ไม่ตัดสิน
+คุณจะได้รับไพ่ทั้ง 10 ใบเป็นบริบท แต่ให้เขียนคำทำนายเฉพาะใบที่ 6-10 เท่านั้น (ไพ่ใบที่ 1-5 ใช้แค่ประกอบบริบท)
+
+${FRAMEWORK_RULES}
+
+ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้ (readings ต้องมี 5 ชิ้น ตรงกับไพ่ใบที่ 6-10 ตามลำดับ แต่ละชิ้นมีรูปแบบ: ${READING_SHAPE_DOC}):
+{
+  "readings": [ /* รายการ 5 ชิ้น สำหรับไพ่ใบที่ 6-10 */ ]
 }`;
 
 const SYSTEM_3_TEMPLATE = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" ตอบคำถามเจาะจงจากไพ่ 3 ใบ (ใช้ตรรกะเสียงข้างมาก)
@@ -184,13 +199,33 @@ exports.handler = async (event) => {
     if (type === "reading10") {
       const cards = body.cards;
       if (!Array.isArray(cards) || cards.length !== 10) throw new Error("Invalid cards payload");
-      const userPrompt = cards.map((c, i) => `${i + 1}.${c.position}:${c.meaning}`).join("|");
-      result = await callOpenRouter(SYSTEM_10, userPrompt, 3200);
-      if (!Array.isArray(result?.readings) || result.readings.length !== 10 ||
-          !result.readings.every(isValidReadingItem) ||
-          typeof result.summary !== "string" || !result.mutelu) {
-        throw new Error("Bad structure from model (reading10)");
+
+      // ส่งบริบทไพ่ครบ 10 ใบให้ทั้งสองฝั่ง (เพื่อให้ summary/โทนเรื่องราวสอดคล้องกัน)
+      // แต่ให้แต่ละฝั่งเขียนคำทำนายแค่ครึ่งเดียว -> ตอบเร็วขึ้นเกือบครึ่ง ยิงขนานกันด้วย Promise.all
+      const fullContext = cards.map((c, i) => `${i + 1}.${c.position}:${c.meaning}`).join("|");
+      const userPromptA = `ไพ่ทั้ง 10 ใบ (เรียงตามลำดับ):\n${fullContext}`;
+      const userPromptB = userPromptA;
+
+      const [resultA, resultB] = await Promise.all([
+        callOpenRouter(SYSTEM_10_A, userPromptA, 1800),
+        callOpenRouter(SYSTEM_10_B, userPromptB, 1400),
+      ]);
+
+      if (!Array.isArray(resultA?.readings) || resultA.readings.length !== 5 ||
+          !resultA.readings.every(isValidReadingItem) ||
+          typeof resultA.summary !== "string" || !resultA.mutelu) {
+        throw new Error("Bad structure from model (reading10 part A)");
       }
+      if (!Array.isArray(resultB?.readings) || resultB.readings.length !== 5 ||
+          !resultB.readings.every(isValidReadingItem)) {
+        throw new Error("Bad structure from model (reading10 part B)");
+      }
+
+      result = {
+        readings: [...resultA.readings, ...resultB.readings],
+        summary: resultA.summary,
+        mutelu: resultA.mutelu,
+      };
     } else if (type === "reading3") {
       const { topic, question, cardMeanings, baseSummary } = body;
       if (!Array.isArray(cardMeanings) || cardMeanings.length !== 3) throw new Error("Invalid cardMeanings payload");
