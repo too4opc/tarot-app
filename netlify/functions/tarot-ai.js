@@ -29,14 +29,14 @@ const DECK_INFO = TAROT_NAMES.map((n, i) => `${i}:${n}`).join(", ");
 // เลี่ยงโครงสร้างซ้อน array-of-objects (เช่น "keys":[{...},{...}]) เพราะโมเดลบางตัวที่ openrouter/auto
 // สุ่มไปเจอ มักพิมพ์ผิดคอมม่า/วงเล็บตรงจุดนี้ ทำให้ JSON parse ไม่ผ่าน -> ใช้ field แบนแทนทั้งหมด
 const READING_SHAPE_DOC = `{
-  "hook": "ประโยคเปิดที่สะท้อนอารมณ์/พลังงานหลักทันที",
-  "key1_title": "หัวข้อประเด็นที่ 1 (สั้น กระชับ)",
-  "key1_desc": "อธิบายประเด็นที่ 1 ใน 1-2 ประโยค",
-  "key2_title": "หัวข้อประเด็นที่ 2 (สั้น กระชับ)",
-  "key2_desc": "อธิบายประเด็นที่ 2 ใน 1-2 ประโยค",
-  "do": "สิ่งที่ควรทำ 1 อย่าง เป็นรูปธรรม นำไปใช้ได้จริงทันที",
-  "dont": "สิ่งที่ควรหลีกเลี่ยง 1 อย่าง เป็นรูปธรรม",
-  "conclusion": "ประโยคสรุปทรงพลัง ให้กำลังใจ ปิดท้ายอย่างอบอุ่น"
+  "hook": "ประโยคเปิด 1 ประโยค สะท้อนแก่นแท้/พลังงานของไพ่ใบนี้ทันที",
+  "key1_title": "หัวข้อประเด็นที่ 1 (สั้น กระชับ ไม่เกิน 6 คำ)",
+  "key1_desc": "อธิบายประเด็นที่ 1 สั้นๆ 1 ประโยค (ยาวได้ไม่เกิน 2 ประโยคถ้าจำเป็น)",
+  "key2_title": "หัวข้อประเด็นที่ 2 (สั้น กระชับ ไม่เกิน 6 คำ)",
+  "key2_desc": "อธิบายประเด็นที่ 2 สั้นๆ 1 ประโยค (ยาวได้ไม่เกิน 2 ประโยคถ้าจำเป็น)",
+  "do": "สิ่งที่ควรทำ 1 อย่าง เป็นรูปธรรม สั้น กระชับ ไม่เกิน 1 ประโยค",
+  "dont": "สิ่งที่ควรหลีกเลี่ยง 1 อย่าง เป็นรูปธรรม สั้น กระชับ ไม่เกิน 1 ประโยค",
+  "conclusion": "ประโยคสรุปทรงพลัง 1 ประโยค ให้กำลังใจ ปิดท้ายอย่างอบอุ่น"
 }`;
 
 // บุคลิก+โทนเสียงร่วมของทุก prompt: เน้นให้ผูกกับความหมายเฉพาะของไพ่ใบนั้นจริงๆ (กันไม่ให้ AI แต่งคำปลอบใจ
@@ -90,7 +90,7 @@ const SYSTEM_10_SUMMARY = `${PERSONA_STYLE}
 
 ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้:
 {
-  "summary": "5ประโยคที่สรุปใจความสำคัญของทั้ง 10 ใบและให้กำลังใจอย่างลึกซึ้ง",
+  "summary": "สรุปใจความสำคัญของทั้ง 10 ใบและให้กำลังใจอย่างลึกซึ้ง ความยาว 5-6 ประโยค ห้ามเกิน 6 ประโยค",
   "mutelu": {"make_merit":"...","lucky_item":"...","lucky_number":"..."}
 }`;
 
@@ -242,9 +242,9 @@ exports.handler = async (event) => {
       const userPrompt = `ไพ่ทั้ง 10 ใบ (เรียงตามลำดับ):\n${fullContext}`;
 
       const [resultA, resultB, resultC] = await Promise.all([
-        callOpenRouter(SYSTEM_10_A, userPrompt, 3200),
-        callOpenRouter(SYSTEM_10_B, userPrompt, 3200),
-        callOpenRouter(SYSTEM_10_SUMMARY, userPrompt, 1200),
+        callOpenRouter(SYSTEM_10_A, userPrompt, 4000),
+        callOpenRouter(SYSTEM_10_B, userPrompt, 4000),
+        callOpenRouter(SYSTEM_10_SUMMARY, userPrompt, 2000),
       ]);
 
       if (!Array.isArray(resultA?.readings) || resultA.readings.length !== 5 ||
@@ -272,7 +272,7 @@ exports.handler = async (event) => {
         baseSummary ? `[ปูมหลังสภาพจิตใจผู้ถาม: ${String(baseSummary).slice(0, 150)}...]` : ""
       );
       const userPrompt = `หมวด:${topic}|คำถาม:${question || "ภาพรวม"}|ไพ่:${cardMeanings.join("/")}`;
-      result = await callOpenRouter(sys, userPrompt, 1800);
+      result = await callOpenRouter(sys, userPrompt, 2400);
       if (!isValidReadingItem(result?.answer) || !result.mutelu) {
         throw new Error("Bad structure from model (reading3)");
       }
@@ -281,7 +281,7 @@ exports.handler = async (event) => {
       if (!dream || typeof dream !== "string") throw new Error("Invalid dream payload");
       const sys = SYSTEM_DREAM_TEMPLATE.replace("{{DECK_INFO}}", DECK_INFO);
       const userPrompt = `ความฝันของฉันคือ: "${dream}"`;
-      result = await callOpenRouter(sys, userPrompt, 1800);
+      result = await callOpenRouter(sys, userPrompt, 2400);
       if (!Array.isArray(result?.cardIds) || result.cardIds.length !== 3 ||
           !isValidReadingItem(result?.answer) || !result.mutelu) {
         throw new Error("Bad structure from model (dream)");
