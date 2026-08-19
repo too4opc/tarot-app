@@ -111,17 +111,19 @@ const QUESTION_TOPICS = [
   { id: 'luck', label: '✨ โชคลาภ/จังหวะชีวิต' }
 ];
 
-// ใบที่ 1 (สถานการณ์ปัจจุบัน) กับใบที่ 2 (อุปสรรค) เดิมอยู่พิกัดเดียวกันเป๊ะ (แค่หมุน 90 องศาทับกัน
-// ตามธรรมเนียม Celtic Cross) ทำให้ภาพสองใบซ้อนทับกันดูรก -> แยกใบที่ 1 ไปอยู่ช่องว่างด้านบนแทน
-// และใบที่ 2 ตั้งตรง (rot:0) ไม่หมุนนอนแล้ว เพื่อให้เห็นภาพไพ่ได้เต็มๆ สวยงาม
+// ใบที่ 1 (สถานการณ์ปัจจุบัน) กับใบที่ 2 (อุปสรรค) ซ้อนทับกันเป๊ะตามธรรมเนียม Celtic Cross สากล
+// (ใบ 2 หมุน 90 องศาทับใบ 1) ไว้ตอนยังคว่ำหน้าอยู่ตามปกติ -> ตำแหน่งฐานยังคงเดิม แต่พอ "เปิด" ไพ่ทั้งสอง
+// ใบแล้ว getCardStyle จะแยกตำแหน่งออกจากกันเอง (ดู case 'reading'/'summary'/'generating') ไม่ให้ภาพทับกัน
 const LAYOUT_10_MOBILE = [
-  { l: 28, t: 19, rot: 0 }, { l: 28, t: 27, rot: 0 }, { l: 28, t: 38, rot: 0 }, { l: 10, t: 25, rot: 0 }, { l: 28, t: 12, rot: 0 },
+  { l: 28, t: 25, rot: 0 }, { l: 28, t: 25, rot: 90 }, { l: 28, t: 38, rot: 0 }, { l: 10, t: 25, rot: 0 }, { l: 28, t: 12, rot: 0 },
   { l: 46, t: 25, rot: 0 }, { l: 75, t: 40, rot: 0 }, { l: 75, t: 30, rot: 0 }, { l: 75, t: 20, rot: 0 }, { l: 75, t: 10, rot: 0 }
 ];
 const LAYOUT_10_DESKTOP = [
-  { l: 35, t: 33, rot: 0 }, { l: 35, t: 50, rot: 0 }, { l: 35, t: 80, rot: 0 }, { l: 15, t: 50, rot: 0 }, { l: 35, t: 20, rot: 0 },
+  { l: 35, t: 50, rot: 0 }, { l: 35, t: 50, rot: 90 }, { l: 35, t: 80, rot: 0 }, { l: 15, t: 50, rot: 0 }, { l: 35, t: 20, rot: 0 },
   { l: 55, t: 50, rot: 0 }, { l: 80, t: 85, rot: 0 }, { l: 80, t: 63, rot: 0 }, { l: 80, t: 41, rot: 0 }, { l: 80, t: 19, rot: 0 }
 ];
+// ตำแหน่งของใบที่ 1 หลังถูกเปิดแล้ว (เลื่อนขึ้นช่องว่างด้านบน ให้ใบที่ 2 ใช้ช่องเดิมแบบตั้งตรงแทน)
+const CARD1_REVEALED_TOP = { mobile: 19, desktop: 33 };
 
 const LAYOUT_3_MOBILE  = [{ l: 20, t: 18, rot: -5 }, { l: 50, t: 18, rot: 0 }, { l: 80, t: 18, rot: 5 }];
 const LAYOUT_3_DESKTOP = [{ l: 25, t: 20, rot: -5 }, { l: 50, t: 20, rot: 0 }, { l: 75, t: 20, rot: 5 }];
@@ -620,9 +622,14 @@ export default function App() {
         const isFlipped = revealed[selIndex];
         left = `${pos.l}%`;
         top = `${pos.t}%`;
+        let rot = pos.rot;
+        // ใบ 1-2 ซ้อนทับกันตามธรรมเนียมสากลตอนยังคว่ำหน้าอยู่ พอเปิด (flip) แล้วค่อยแยกไม่ให้ภาพทับกัน:
+        // ใบ 1 เลื่อนขึ้นช่องว่างด้านบน, ใบ 2 ตั้งตรงในช่องเดิมแทนการหมุนนอนทับ
+        if (selIndex === 0 && isFlipped) top = `${isMobile ? CARD1_REVEALED_TOP.mobile : CARD1_REVEALED_TOP.desktop}%`;
+        if (selIndex === 1) rot = isFlipped ? 0 : 90;
         let scale = isMobile ? 0.65 : 0.85;
         if (currentLayoutState === 'reading' && selIndex === readingIndex && !isFlipped) scale = isMobile ? 0.75 : 1.05;
-        transform = `translate(-50%, -50%) rotate(${pos.rot}deg) ${isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'} scale(${scale})`;
+        transform = `translate(-50%, -50%) rotate(${rot}deg) ${isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'} scale(${scale})`;
         zIndex = selIndex === 1 ? 110 : 100 + selIndex;
         break;
       }
