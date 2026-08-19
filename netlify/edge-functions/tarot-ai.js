@@ -1,14 +1,20 @@
-// Netlify Function: proxy คำขอ AI ของแอปดูดวงทาโรต์ไปที่ OpenRouter (model: openrouter/auto)
-// - OPENROUTER_API_KEY อ่านจาก process.env เท่านั้น -> ตั้งค่าใน Netlify dashboard/CLI ห้ามฝังในโค้ด/commit
+// Netlify EDGE Function (รันบน Deno, ไม่ใช่ Node ธรรมดา): proxy คำขอ AI ไปที่ OpenRouter
+//
+// ทำไมต้องเป็น Edge Function: Netlify Function ธรรมดามีเพดานเวลารันตายตัว (วัดจาก wall-clock รวมเวลา
+// ที่รอ OpenRouter ตอบด้วย) ซึ่งพิสูจน์แล้วจากการทดสอบจริงว่าเจอ "Task timed out after 30.00 seconds"
+// เวลา openrouter/auto สุ่มไปเจอโมเดลที่ตอบช้า -- ต่อให้ปรับ token/prompt ยังไงก็ยังชนเพดานนี้ได้เสมอ
+// Edge Function รันบน Deno/V8 isolate ซึ่งเวลาที่ใช้ "รอ" network I/O (เช่นรอ OpenRouter) ไม่ถูกนับ
+// เป็นเวลาทำงานแบบเดียวกับ Node Function เลยไม่มีเพดานลักษณะนี้มาบล็อก
+//
+// - OPENROUTER_API_KEY อ่านจาก Deno.env เท่านั้น -> ตั้งค่าใน Netlify dashboard/CLI ห้ามฝังในโค้ด/commit
 // - เก็บ system prompt + รายชื่อไพ่ทั้ง 78 ใบไว้ฝั่งนี้ (client ส่งแค่ข้อมูลดิบ)
 // - Framework การอ่านไพ่: Hook -> Keys(พร้อมคำอธิบาย) -> Do & Don't -> Conclusion
-// - Rate limit ต่อ IP ผ่าน Netlify Blobs (ทำงานอัตโนมัติเมื่อ deploy บน Netlify)
+// - หมายเหตุ: ตัด rate-limit ผ่าน Netlify Blobs ออกชั่วคราว (ของเดิมอยู่ใน netlify/functions/tarot-ai.js
+//   เผื่ออยากเอากลับมาทีหลัง) เพื่อลดความเสี่ยงตอน migrate มา edge runtime ครั้งแรก
 
-const { getStore } = require("@netlify/blobs");
+export const config = { path: "/api/tarot-ai" };
 
 const MODEL = "openrouter/auto";
-const MAX_REQUESTS_PER_WINDOW = 20; // ต่อ IP ต่อหน้าต่างเวลา
-const WINDOW_MS = 60 * 60 * 1000; // 1 ชั่วโมง
 
 const TAROT_NAMES = [
   "The Fool","The Magician","The High Priestess","The Empress","The Emperor","The Hierophant","The Lovers",
@@ -26,8 +32,6 @@ const TAROT_NAMES = [
 ];
 const DECK_INFO = TAROT_NAMES.map((n, i) => `${i}:${n}`).join(", ");
 
-// เลี่ยงโครงสร้างซ้อน array-of-objects (เช่น "keys":[{...},{...}]) เพราะโมเดลบางตัวที่ openrouter/auto
-// สุ่มไปเจอ มักพิมพ์ผิดคอมม่า/วงเล็บตรงจุดนี้ ทำให้ JSON parse ไม่ผ่าน -> ใช้ field แบนแทนทั้งหมด
 const READING_SHAPE_DOC = `{
   "hook": "ประโยคเปิด 1 ประโยค สะท้อนแก่นแท้/พลังงานของไพ่ใบนี้ทันที",
   "key1_title": "หัวข้อประเด็นที่ 1 (สั้น กระชับ ไม่เกิน 6 คำ)",
@@ -39,8 +43,6 @@ const READING_SHAPE_DOC = `{
   "conclusion": "ประโยคสรุปทรงพลัง 1 ประโยค ให้กำลังใจ ปิดท้ายอย่างอบอุ่น"
 }`;
 
-// บุคลิก+โทนเสียงร่วมของทุก prompt: เน้นให้ผูกกับความหมายเฉพาะของไพ่ใบนั้นจริงๆ (กันไม่ให้ AI แต่งคำปลอบใจ
-// กลางๆ ที่ใช้สลับกับไพ่ใบไหนก็ได้ ซึ่งเป็นปัญหาที่เจอจริงว่าอ่านแล้วรู้สึกเหมือนกันเกือบทุกใบ)
 const PERSONA_STYLE = `บุคลิกของคุณ: นักเล่าเรื่องและนักอ่านไพ่ทาโรต์ฝีมือฉกาจ อ่านไพ่ได้ลึกซึ้งราวกับมองทะลุเข้าไปในใจผู้ถาม แต่เล่าออกมาให้เข้าใจง่ายจนเด็กประถมก็ฟังรู้เรื่อง
 
 กฎการเขียนที่สำคัญที่สุด (ต้องทำตามเคร่งครัดทุกข้อ):
@@ -60,10 +62,6 @@ const FRAMEWORK_RULES = `${PERSONA_STYLE}
 กฎสำคัญ: แม้ไพ่จะเลวร้ายแค่ไหน ห้ามขู่ให้กลัว ให้ตีความเป็น "บทเรียนเพื่อเติบโต" มอบพลังบวกเสมอ
 ห้าม: เอ่ยชื่อไพ่ | ทำนายตาย/โรคภัย/ลงทุน | ใช้คำว่า "ดวงตก" หรือ "เคราะห์ร้าย"`;
 
-// การทำนาย 10 ใบให้เนื้อหาเยอะ (framework 4 ส่วน x10) ทำให้โมเดลตอบช้าจนชน execution timeout ของ
-// Netlify Function (504) และเสี่ยงตอบ JSON ไม่จบ (502) -> แบ่งเป็น 3 คำขอขนานกัน: readings ใบ 1-5,
-// readings ใบ 6-10, และ summary+mutelu แยกเป็นก้อนเล็กของตัวเอง (ไม่พ่วงกับ readings ที่หนักอยู่แล้ว
-// เพื่อไม่ให้ summary/mutelu หายไปด้วยตอนที่ readings ถูกตัดกลางคัน)
 const SYSTEM_10_A = `คุณจะได้รับไพ่ทั้ง 10 ใบเป็นบริบท แต่ให้เขียนคำทำนายเฉพาะใบที่ 1-5 เท่านั้น (ไพ่ใบที่ 6-10 ใช้แค่ประกอบบริบท)
 
 ${FRAMEWORK_RULES}
@@ -122,19 +120,16 @@ function extractJSON(text = "") {
   const trimmed = text.trim();
   try {
     return JSON.parse(trimmed);
-  } catch (firstErr) {
+  } catch {
     const m = trimmed.match(/\{[\s\S]*\}/);
     if (!m) throw new Error(`No JSON in model response. Raw (first 300 chars): ${trimmed.slice(0, 300)}`);
     try {
       return JSON.parse(m[0]);
     } catch {
-      // ความผิดพลาดที่พบบ่อยที่สุดจากโมเดล: ปิด } ของ object หนึ่งใน array แล้วเปิด { ของตัวถัดไปทันที
-      // โดยลืมใส่คอมม่าคั่น -> ซ่อมด้วยการแทรกคอมม่าเข้าไปแล้วลอง parse ใหม่อีกครั้งก่อนจะยอมแพ้
       const repaired = m[0].replace(/\}(\s*)\{/g, '},$1{');
       try {
         return JSON.parse(repaired);
       } catch (finalErr) {
-        // DEBUG: ดัมพ์ context กว้างขึ้นมากเพื่อดูโครงสร้างจริงที่โมเดลตอบมา (ชั่วคราว ไว้วินิจฉัยจุดพัง)
         const posMatch = finalErr.message.match(/position (\d+)/);
         const pos = posMatch ? parseInt(posMatch[1], 10) : null;
         const context = pos != null ? repaired.slice(Math.max(0, pos - 400), pos + 400) : repaired.slice(0, 800);
@@ -151,36 +146,16 @@ function isValidReadingItem(r) {
     typeof r.do === "string" && typeof r.dont === "string" && typeof r.conclusion === "string";
 }
 
-async function checkRateLimit(ip) {
-  try {
-    const store = getStore("rate-limits");
-    const key = `rl_${ip}`;
-    const now = Date.now();
-    const raw = await store.get(key, { type: "json" });
-
-    let windowStart = now;
-    let count = 0;
-    if (raw && now - raw.windowStart < WINDOW_MS) {
-      windowStart = raw.windowStart;
-      count = raw.count;
-    }
-    if (count >= MAX_REQUESTS_PER_WINDOW) return false;
-
-    await store.setJSON(key, { windowStart, count: count + 1 });
-    return true;
-  } catch (err) {
-    console.warn("[rate-limit] skipped:", err.message);
-    return true;
-  }
-}
-
 async function callOpenRouter(systemPrompt, userPrompt, maxTokens) {
+  const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+  const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") || "https://tarot-app.netlify.app";
+
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": process.env.ALLOWED_ORIGIN || "https://tarot-app.netlify.app",
+      "HTTP-Referer": allowedOrigin,
       "X-Title": "Too AI Tarot",
     },
     body: JSON.stringify({
@@ -206,25 +181,23 @@ async function callOpenRouter(systemPrompt, userPrompt, maxTokens) {
   return extractJSON(content);
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: JSON.stringify({ error: "Method Not Allowed" }) };
-  }
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
-  const ip = event.headers["x-nf-client-connection-ip"] || event.headers["client-ip"] || "unknown";
-  const allowed = await checkRateLimit(ip);
-  if (!allowed) {
-    return {
-      statusCode: 429,
-      body: JSON.stringify({ error: "Rate limit exceeded, please try again later." }),
-    };
+export default async (request) => {
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
   let body;
   try {
-    body = JSON.parse(event.body || "{}");
+    body = await request.json();
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON body" }) };
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
   try {
@@ -235,9 +208,6 @@ exports.handler = async (event) => {
       const cards = body.cards;
       if (!Array.isArray(cards) || cards.length !== 10) throw new Error("Invalid cards payload");
 
-      // ส่งบริบทไพ่ครบ 10 ใบให้ทุกฝั่ง (เพื่อให้ summary/โทนเรื่องราวสอดคล้องกัน) แต่แยกงานเป็น 3 ก้อนเล็ก
-      // ยิงขนานกันด้วย Promise.all: readings 1-5, readings 6-10, และ summary+mutelu แยกต่างหาก
-      // -> แต่ละก้อนตอบเร็วและมีโอกาสถูกตัดจบก่อนจบ JSON น้อยลงมาก เทียบกับยัดทุกอย่างไว้ก้อนเดียว
       const fullContext = cards.map((c, i) => `${i + 1}.${c.position}:${c.meaning}`).join("|");
       const userPrompt = `ไพ่ทั้ง 10 ใบ (เรียงตามลำดับ):\n${fullContext}`;
 
@@ -287,11 +257,11 @@ exports.handler = async (event) => {
         throw new Error("Bad structure from model (dream)");
       }
     } else {
-      return { statusCode: 400, body: JSON.stringify({ error: "Unknown type" }) };
+      return jsonResponse({ error: "Unknown type" }, 400);
     }
 
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };
+    return jsonResponse(result);
   } catch (err) {
-    return { statusCode: 502, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: err.message }) };
+    return jsonResponse({ error: err.message }, 502);
   }
 };

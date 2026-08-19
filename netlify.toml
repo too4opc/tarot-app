@@ -1,14 +1,6 @@
 [build]
   command = "npm run build"
   publish = "dist"
-  functions = "netlify/functions"
 
-# frontend เรียก /api/tarot-ai แทนที่จะรู้ path เต็มของ Netlify Function
-# ข้อดี: same-origin กับหน้าเว็บ ไม่ต้องยุ่งกับ CORS เลย
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-[functions]
-  node_bundler = "esbuild"
+# /api/tarot-ai ถูก serve โดย netlify/edge-functions/tarot-ai.js โดยตรง (กำหนด path ในตัวไฟล์เองผ่าน
+# `export const config = { path: "/api/tarot-ai" }`) ไม่ต้องประกาศ redirect หรือ [functions] เพิ่มแล้ว
