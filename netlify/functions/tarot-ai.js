@@ -47,20 +47,19 @@ const FRAMEWORK_RULES = `โครงสร้างการเขียนค�
 กฎสำคัญ: แม้ไพ่จะเลวร้ายแค่ไหน ห้ามขู่ให้กลัว ให้ตีความเป็น "บทเรียนเพื่อเติบโต" มอบพลังบวกเสมอ
 ห้าม: เอ่ยชื่อไพ่ | ทำนายตาย/โรคภัย/ลงทุน | ใช้คำว่า "ดวงตก" หรือ "เคราะห์ร้าย"`;
 
-// การทำนาย 10 ใบให้เนื้อหาเยอะ (framework 4 ส่วน x10) ทำให้โมเดลตอบช้าจนชน execution timeout
-// ของ Netlify Function (504) ได้ง่าย -> แบ่งเป็น 2 คำขอขนานกัน (ใบ 1-5 และ 6-10) แทนการยิงทีเดียว 10 ใบ
-// ฝั่ง A รับหน้าที่ทำ summary+mutelu เพิ่มด้วย (ทั้งคู่เห็นบริบทไพ่ครบ 10 ใบเหมือนกัน เพื่อให้สรุปเรื่องราวสอดคล้องกัน)
+// การทำนาย 10 ใบให้เนื้อหาเยอะ (framework 4 ส่วน x10) ทำให้โมเดลตอบช้าจนชน execution timeout ของ
+// Netlify Function (504) และเสี่ยงตอบ JSON ไม่จบ (502) -> แบ่งเป็น 3 คำขอขนานกัน: readings ใบ 1-5,
+// readings ใบ 6-10, และ summary+mutelu แยกเป็นก้อนเล็กของตัวเอง (ไม่พ่วงกับ readings ที่หนักอยู่แล้ว
+// เพื่อไม่ให้ summary/mutelu หายไปด้วยตอนที่ readings ถูกตัดกลางคัน)
 const SYSTEM_10_A = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" (Psychotherapist & Life Counselor) ที่ใช้ไพ่ทาโรต์เป็นเครื่องมือสะท้อนจิตใจผู้คน
 สไตล์: ภาษาไทยที่อบอุ่น อ่อนโยน เข้าอกเข้าใจ (Empathetic) ให้ความรู้สึกปลอดภัย ไม่ตัดสิน
-คุณจะได้รับไพ่ทั้ง 10 ใบเป็นบริบท แต่ให้เขียนคำทำนายเฉพาะใบที่ 1-5 เท่านั้น (ไพ่ใบที่ 6-10 ใช้แค่ประกอบบริบทสำหรับ summary)
+คุณจะได้รับไพ่ทั้ง 10 ใบเป็นบริบท แต่ให้เขียนคำทำนายเฉพาะใบที่ 1-5 เท่านั้น (ไพ่ใบที่ 6-10 ใช้แค่ประกอบบริบท)
 
 ${FRAMEWORK_RULES}
 
 ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้ (readings ต้องมี 5 ชิ้น ตรงกับไพ่ใบที่ 1-5 ตามลำดับ แต่ละชิ้นมีรูปแบบ: ${READING_SHAPE_DOC}):
 {
-  "readings": [ /* รายการ 5 ชิ้น สำหรับไพ่ใบที่ 1-5 */ ],
-  "summary": "5ประโยคที่สรุปใจความสำคัญของทั้ง 10 ใบ (ครบทุกใบ) และให้กำลังใจอย่างลึกซึ้ง",
-  "mutelu": {"make_merit":"...","lucky_item":"...","lucky_number":"..."}
+  "readings": [ /* รายการ 5 ชิ้น สำหรับไพ่ใบที่ 1-5 */ ]
 }`;
 
 const SYSTEM_10_B = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" (Psychotherapist & Life Counselor) ที่ใช้ไพ่ทาโรต์เป็นเครื่องมือสะท้อนจิตใจผู้คน
@@ -72,6 +71,18 @@ ${FRAMEWORK_RULES}
 ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้ (readings ต้องมี 5 ชิ้น ตรงกับไพ่ใบที่ 6-10 ตามลำดับ แต่ละชิ้นมีรูปแบบ: ${READING_SHAPE_DOC}):
 {
   "readings": [ /* รายการ 5 ชิ้น สำหรับไพ่ใบที่ 6-10 */ ]
+}`;
+
+const SYSTEM_10_SUMMARY = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" (Psychotherapist & Life Counselor) ที่ใช้ไพ่ทาโรต์เป็นเครื่องมือสะท้อนจิตใจผู้คน
+สไตล์: ภาษาไทยที่อบอุ่น อ่อนโยน เข้าอกเข้าใจ (Empathetic) ให้ความรู้สึกปลอดภัย ไม่ตัดสิน
+คุณจะได้รับไพ่ทั้ง 10 ใบเป็นบริบท ให้เขียนบทสรุปรวมของทั้ง 10 ใบ (ไม่ต้องแยกทำนายรายใบ)
+กฎสำคัญ: แม้ไพ่จะเลวร้ายแค่ไหน ห้ามขู่ให้กลัว ให้ตีความเป็น "บทเรียนเพื่อเติบโต" มอบพลังบวกเสมอ
+ห้าม: เอ่ยชื่อไพ่ | ทำนายตาย/โรคภัย/ลงทุน | ใช้คำว่า "ดวงตก" หรือ "เคราะห์ร้าย"
+
+ตอบเป็น JSON เท่านั้นตามโครงสร้างนี้:
+{
+  "summary": "5ประโยคที่สรุปใจความสำคัญของทั้ง 10 ใบและให้กำลังใจอย่างลึกซึ้ง",
+  "mutelu": {"make_merit":"...","lucky_item":"...","lucky_number":"..."}
 }`;
 
 const SYSTEM_3_TEMPLATE = `คุณคือ "นักจิตบำบัดและที่ปรึกษาชีวิต" ตอบคำถามเจาะจงจากไพ่ 3 ใบ (ใช้ตรรกะเสียงข้างมาก)
@@ -217,33 +228,34 @@ exports.handler = async (event) => {
       const cards = body.cards;
       if (!Array.isArray(cards) || cards.length !== 10) throw new Error("Invalid cards payload");
 
-      // ส่งบริบทไพ่ครบ 10 ใบให้ทั้งสองฝั่ง (เพื่อให้ summary/โทนเรื่องราวสอดคล้องกัน)
-      // แต่ให้แต่ละฝั่งเขียนคำทำนายแค่ครึ่งเดียว -> ตอบเร็วขึ้นเกือบครึ่ง ยิงขนานกันด้วย Promise.all
+      // ส่งบริบทไพ่ครบ 10 ใบให้ทุกฝั่ง (เพื่อให้ summary/โทนเรื่องราวสอดคล้องกัน) แต่แยกงานเป็น 3 ก้อนเล็ก
+      // ยิงขนานกันด้วย Promise.all: readings 1-5, readings 6-10, และ summary+mutelu แยกต่างหาก
+      // -> แต่ละก้อนตอบเร็วและมีโอกาสถูกตัดจบก่อนจบ JSON น้อยลงมาก เทียบกับยัดทุกอย่างไว้ก้อนเดียว
       const fullContext = cards.map((c, i) => `${i + 1}.${c.position}:${c.meaning}`).join("|");
-      const userPromptA = `ไพ่ทั้ง 10 ใบ (เรียงตามลำดับ):\n${fullContext}`;
-      const userPromptB = userPromptA;
+      const userPrompt = `ไพ่ทั้ง 10 ใบ (เรียงตามลำดับ):\n${fullContext}`;
 
-      // openrouter/auto บางครั้งสุ่มไปเจอโมเดลที่ใช้ token ส่วนหนึ่งไปกับ "reasoning" ภายในก่อนเขียนคำตอบจริง
-      // -> ให้ max_tokens มีระยะกันชนมากพอ ไม่งั้น JSON จะถูกตัดครึ่งกลางคันหรือได้ content ว่างเปล่า
-      const [resultA, resultB] = await Promise.all([
-        callOpenRouter(SYSTEM_10_A, userPromptA, 3000),
-        callOpenRouter(SYSTEM_10_B, userPromptB, 2200),
+      const [resultA, resultB, resultC] = await Promise.all([
+        callOpenRouter(SYSTEM_10_A, userPrompt, 3200),
+        callOpenRouter(SYSTEM_10_B, userPrompt, 3200),
+        callOpenRouter(SYSTEM_10_SUMMARY, userPrompt, 1200),
       ]);
 
       if (!Array.isArray(resultA?.readings) || resultA.readings.length !== 5 ||
-          !resultA.readings.every(isValidReadingItem) ||
-          typeof resultA.summary !== "string" || !resultA.mutelu) {
+          !resultA.readings.every(isValidReadingItem)) {
         throw new Error("Bad structure from model (reading10 part A)");
       }
       if (!Array.isArray(resultB?.readings) || resultB.readings.length !== 5 ||
           !resultB.readings.every(isValidReadingItem)) {
         throw new Error("Bad structure from model (reading10 part B)");
       }
+      if (typeof resultC?.summary !== "string" || !resultC.mutelu) {
+        throw new Error("Bad structure from model (reading10 summary)");
+      }
 
       result = {
         readings: [...resultA.readings, ...resultB.readings],
-        summary: resultA.summary,
-        mutelu: resultA.mutelu,
+        summary: resultC.summary,
+        mutelu: resultC.mutelu,
       };
     } else if (type === "reading3") {
       const { topic, question, cardMeanings, baseSummary } = body;
