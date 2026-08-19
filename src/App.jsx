@@ -227,40 +227,17 @@ const fallbackMutelu = {
 // ---------------------------------------------------------------------------
 // Component: ReadingBlock — เรนเดอร์คำทำนายตาม framework Hook -> Keys -> Do/Don't -> Conclusion
 // ---------------------------------------------------------------------------
+// เล่าเรื่องต่อเนื่องเป็นพารากราฟ ไม่ใส่กรอบ/พื้นหลัง/เส้นขอบแยกส่วน แต่ยังคงลำดับ
+// Hook -> Keys -> Do/Don't -> Conclusion ไว้เป็นโครงการเล่าเรื่องเบื้องหลัง
 const ReadingBlock = ({ reading }) => {
   if (!reading) return null;
   return (
-    <div className="space-y-4 text-left">
-      <p className="text-indigo-50 text-base md:text-lg leading-relaxed font-semibold">
-        {reading.hook}
-      </p>
-
-      <div className="space-y-2">
-        {[
-          { title: reading.key1_title, desc: reading.key1_desc },
-          { title: reading.key2_title, desc: reading.key2_desc },
-        ].filter(k => k.title).map((k, i) => (
-          <div key={i} className="bg-indigo-950/40 border border-indigo-500/20 rounded-lg p-3">
-            <p className="text-yellow-300 font-semibold text-sm mb-1">{k.title}</p>
-            <p className="text-indigo-100 text-sm leading-relaxed">{k.desc}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-3">
-          <p className="text-emerald-300 font-semibold text-xs mb-1">✅ ควรทำ</p>
-          <p className="text-indigo-100 text-sm leading-relaxed">{reading.do}</p>
-        </div>
-        <div className="bg-rose-900/20 border border-rose-500/30 rounded-lg p-3">
-          <p className="text-rose-300 font-semibold text-xs mb-1">🚫 ควรเลี่ยง</p>
-          <p className="text-indigo-100 text-sm leading-relaxed">{reading.dont}</p>
-        </div>
-      </div>
-
-      <p className="text-yellow-100 text-base italic border-t border-indigo-500/20 pt-3">
-        {reading.conclusion}
-      </p>
+    <div className="text-left text-indigo-100 text-sm sm:text-base md:text-lg leading-loose space-y-3">
+      <p className="font-medium text-indigo-50">{reading.hook}</p>
+      <p>{reading.key1_desc}</p>
+      <p>{reading.key2_desc}</p>
+      <p>{reading.do} {reading.dont}</p>
+      <p className="italic text-yellow-100">{reading.conclusion}</p>
     </div>
   );
 };
@@ -908,7 +885,7 @@ export default function App() {
                         <h4 className="text-xl font-bold text-white drop-shadow-md mb-0.5">{selectedCards[readingIndex].th}</h4>
                         <p className="text-xs text-yellow-300 italic mb-3">{selectedCards[readingIndex].name}</p>
 
-                        <div className="w-full bg-indigo-900/40 border border-indigo-500/30 p-4 md:p-5 rounded-xl shadow-inner">
+                        <div className="w-full">
                           <ReadingBlock reading={aiReadings[readingIndex]} />
                         </div>
                       </div>
@@ -1041,7 +1018,7 @@ export default function App() {
                   </h3>
                 </div>
 
-                <div className="flex-1 w-full bg-indigo-900/30 border border-indigo-500/30 p-4 md:p-6 rounded-2xl shadow-inner mb-5 overflow-y-auto">
+                <div className="flex-1 w-full mb-5 overflow-y-auto">
                   {isFallbackMode && <FallbackBadge small />}
                   <ReadingBlock reading={questionAnswer} />
                 </div>
